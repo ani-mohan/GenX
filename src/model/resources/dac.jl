@@ -50,7 +50,7 @@ function dac!(EP::Model, inputs::Dict, setup::Dict)
     Max_Steam_Diversion_Per_Plant = Dac_params["Max_Steam_Diversion_Per_Plant"]    #maximum allowed share of steam diverted
     Heat_extraction_per_percent_steam_diversion = Dac_params["Heat_extraction_per_percent_steam_diversion"]  #heat available from extraction
     power_heat_ratio = Dac_params["Power_Heat_Ratio"]   #penalty per gj of steam diversion
-    MW_to_GJ_conversion = Dac_params["MW_to_GJ_conversion"]   #3.6
+    MW_to_GJ_conversion = Dac_params["MW_to_GJ_conversion"]   #conversion factor 
     HX_cost_multiplier = Dac_params["HX_cost_multiplier"]   #from HX costing and steam extraction
     HX_cost_constant = Dac_params["HX_cost_constant"]   #from HX costing and steam extraction
 
