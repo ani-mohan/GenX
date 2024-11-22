@@ -35,6 +35,7 @@ In addition, this function adds investment and fixed O&M related costs related t
 function investment_discharge!(EP::Model, inputs::Dict, setup::Dict)
     println("Investment Discharge Module")
     MultiStage = setup["MultiStage"]
+    SpeedLimits = setup["SpeedLimits"]
 
     gen = inputs["RESOURCES"]
 
@@ -138,6 +139,10 @@ function investment_discharge!(EP::Model, inputs::Dict, setup::Dict)
         @constraint(EP,
             cExistingCap[y in 1:G],
             EP[:vEXISTINGCAP][y]==existing_cap_mw(gen[y]))
+    end
+
+    if SpeedLimits == 1
+        speed_limits!(EP, inputs, setup)
     end
 
     ## Constraints on retirements and capacity additions

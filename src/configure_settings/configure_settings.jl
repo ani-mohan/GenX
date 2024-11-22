@@ -22,6 +22,7 @@ function default_settings()
         "ModelingtoGenerateAlternativeSlack" => 0.1,
         "MGAAnnualGeneration" => 0,
         "MultiStage" => 0,
+        "SpeedLimits" => 0,
         "MethodofMorris" => 0,
         "IncludeLossesInESR" => 0,
         "HydrogenMinimumProduction" => 0,
