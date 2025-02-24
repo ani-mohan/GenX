@@ -19,6 +19,7 @@ function write_multi_stage_outputs(stats_d::Dict,
     multi_stage_settings_d = settings_d["MultiStageSettingsDict"]
 
     write_multi_stage_capacities_discharge(outpath, multi_stage_settings_d)
+    write_multi_stage_shadow_capacities(outpath, multi_stage_settings_d)
     write_multi_stage_new_capacities_discharge(outpath, multi_stage_settings_d)
     write_multi_stage_capacities_charge(outpath, multi_stage_settings_d)
     write_multi_stage_capacities_energy(outpath, multi_stage_settings_d)

@@ -79,6 +79,11 @@ function write_outputs(EP::Model, path::AbstractString, setup::Dict, inputs::Dic
         println(elapsed_time_power)
     end
 
+    if setup["SpeedLimits"] ==1
+        println("Writing shadow investments")
+        write_shadow_capacity(path, inputs, setup, EP)
+    end
+
     if output_settings_d["WriteCharge"]
         elapsed_time_charge = @elapsed write_charge(path, inputs, setup, EP)
         println("Time elapsed for writing charge is")

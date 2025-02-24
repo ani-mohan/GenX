@@ -55,7 +55,9 @@ function investment_discharge!(EP::Model, inputs::Dict, setup::Dict)
     @variable(EP, vCAP[y in NEW_CAP]>=0)
 
     if MultiStage == 1
-        @variable(EP, vEXISTINGCAP[y = 1:G]>=0)
+        @variable(EP, vEXISTINGCAP[y = 1:G]>=0)   # how much actual capacity exists already
+        @variable(EP, vShadow_Existing[y in NEW_CAP]>=0)  # how much shadow capacity exists for potential new generators
+        @variable(EP, vShadow_Stage_Tracking[y in NEW_CAP]>=0)  # stage of investment actualized for potential new generators
     end
 
     # Being retrofitted capacity of resource y 
@@ -132,17 +134,23 @@ function investment_discharge!(EP::Model, inputs::Dict, setup::Dict)
         add_to_expression!(EP[:eObj], eTotalCFix)
     end
 
-    ### Constratints ###
+    ### Constraints ###
 
     if MultiStage == 1
         # Existing capacity variable is equal to existing capacity specified in the input file
         @constraint(EP,
             cExistingCap[y in 1:G],
             EP[:vEXISTINGCAP][y]==existing_cap_mw(gen[y]))
-    end
 
-    if SpeedLimits == 1
-        speed_limits!(EP, inputs, setup)
+        if SpeedLimits == 1
+            @constraint(EP, cShadowTrack[y in NEW_CAP], EP[:vShadow_Existing][y] == existing_shadow_mw(gen[y]))   # this is the constraint that gets passed to DDP for multi stage tracking
+            @constraint(EP, cShadowStage[y in NEW_CAP], EP[:vShadow_Stage_Tracking][y] == existing_shadow_stage(gen[y]))   # this is the constraint that gets passed to DDP for multi stage tracking
+            shadow_investment_constraints!(EP, inputs, setup)
+        else   #avoid any constraints on new capacity tied to shadow capacity
+            @constraint(EP, cShadowTrack[y in NEW_CAP], EP[:vShadow_Existing][y] == existing_shadow_mw(gen[y]))
+            @expression(EP, eTotalShadowCap[y in inputs["NEW_CAP"]], EP[:vShadow_Existing][y]  )
+            @variable(EP, vShadow_New[y in inputs["NEW_CAP"]] >=0)
+        end
     end
 
     ## Constraints on retirements and capacity additions

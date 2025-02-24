@@ -18,6 +18,42 @@ function write_capacity(path::AbstractString, inputs::Dict, setup::Dict, EP::Mod
         end
     end
 
+    shadowcap_start = zeros(size(inputs["RESOURCE_NAMES"]))
+    for i in inputs["NEW_CAP"]
+        if i in inputs["COMMIT"]
+            shadowcap_start[i] = value.(EP[:eTotalShadowCap][i]) * cap_size(gen[i])
+        else
+            shadowcap_start[i] = value.(EP[:eTotalShadowCap][i])
+        end
+    end
+
+    shadowcap_new = zeros(size(inputs["RESOURCE_NAMES"]))
+    for i in inputs["NEW_CAP"]
+        if i in inputs["COMMIT"]
+            shadowcap_new[i] = value.(EP[:vShadow_New][i]) * cap_size(gen[i])
+        else
+            shadowcap_new[i] = value.(EP[:vShadow_New][i])
+        end
+    end    
+
+    shadowstage_start = zeros(size(inputs["RESOURCE_NAMES"]))
+    for i in inputs["NEW_CAP"]
+        if i in inputs["COMMIT"]
+            shadowstage_start[i] = value.(EP[:vShadow_Stage_Tracking][i])
+        else
+            shadowstage_start[i] = value.(EP[:vShadow_Stage_Tracking][i])
+        end
+    end  
+
+    shadowstage_new = zeros(size(inputs["RESOURCE_NAMES"]))
+    for i in inputs["NEW_CAP"]
+        if i in inputs["COMMIT"]
+            shadowstage_new[i] = value.(EP[:vShadow_StageNew][i]) 
+        else
+            shadowstage_new[i] = value.(EP[:vShadow_StageNew][i])
+        end
+    end    
+
     retcapdischarge = zeros(size(inputs["RESOURCE_NAMES"]))
     for i in inputs["RET_CAP"]
         if i in inputs["COMMIT"]
@@ -95,7 +131,12 @@ function write_capacity(path::AbstractString, inputs::Dict, setup::Dict, EP::Mod
         StartChargeCap = existingcapcharge[:],
         RetChargeCap = retcapcharge[:],
         NewChargeCap = capcharge[:],
-        EndChargeCap = existingcapcharge[:] - retcapcharge[:] + capcharge[:])
+        EndChargeCap = existingcapcharge[:] - retcapcharge[:] + capcharge[:],
+        StartShadowCap = MultiStage == 1 ?  shadowcap_start : 0,
+        NewShadowCap =  MultiStage == 1 ?  shadowcap_new : 0,
+        StartShadowStage = MultiStage == 1 ?  shadowstage_start : 0,
+        NewShadowStage = MultiStage == 1 ?  shadowstage_new : 0
+        )
     if setup["ParameterScale"] == 1
         dfCap.StartCap = dfCap.StartCap * ModelScalingFactor
         dfCap.RetCap = dfCap.RetCap * ModelScalingFactor
@@ -111,6 +152,10 @@ function write_capacity(path::AbstractString, inputs::Dict, setup::Dict, EP::Mod
         dfCap.RetChargeCap = dfCap.RetChargeCap * ModelScalingFactor
         dfCap.NewChargeCap = dfCap.NewChargeCap * ModelScalingFactor
         dfCap.EndChargeCap = dfCap.EndChargeCap * ModelScalingFactor
+        dfCap.StartShadowCap = dfCap.StartShadowCap * ModelScalingFactor
+        dfCap.NewShadowCap = dfCap.NewShadowCap * ModelScalingFactor
+        dfCap.StartShadowStage = dfCap.StartShadowStage 
+        dfCap.NewShadowStage = dfCap.NewShadowStage 
     end
     total = DataFrame(Resource = "Total", Zone = "n/a", Retrofit_Id = "n/a",
         StartCap = sum(dfCap[!, :StartCap]), RetCap = sum(dfCap[!, :RetCap]),
@@ -124,7 +169,12 @@ function write_capacity(path::AbstractString, inputs::Dict, setup::Dict, EP::Mod
         StartChargeCap = sum(dfCap[!, :StartChargeCap]),
         RetChargeCap = sum(dfCap[!, :RetChargeCap]),
         NewChargeCap = sum(dfCap[!, :NewChargeCap]),
-        EndChargeCap = sum(dfCap[!, :EndChargeCap]))
+        EndChargeCap = sum(dfCap[!, :EndChargeCap]),
+        StartShadowCap = sum(dfCap[!, :StartShadowCap]),
+        NewShadowCap = sum(dfCap[!, :NewShadowCap]),
+        StartShadowStage = sum(dfCap[!, :StartShadowStage]),
+        NewShadowStage = sum(dfCap[!, :NewShadowStage])
+        )
 
     dfCap = vcat(dfCap, total)
     CSV.write(joinpath(path, "capacity.csv"), dfCap)

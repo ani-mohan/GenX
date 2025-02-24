@@ -577,6 +577,8 @@ max_charge_cap_mw(r::AbstractResource) = get(r, :max_charge_cap_mw, default_minm
 min_charge_cap_mw(r::AbstractResource) = get(r, :min_charge_cap_mw, default_minmax_cap)
 
 existing_cap_mw(r::AbstractResource) = r.existing_cap_mw
+existing_shadow_mw(r::AbstractResource) = r.existing_shadow_mw
+existing_shadow_stage(r::AbstractResource) = r.existing_shadow_stage
 existing_cap_mwh(r::AbstractResource) = get(r, :existing_cap_mwh, default_zero)
 existing_charge_cap_mw(r::AbstractResource) = get(r, :existing_charge_cap_mw, default_zero)
 
@@ -1239,4 +1241,9 @@ function has_all_options_not_contributing(retrofit_res::AbstractResource,
     return isempty(intersect(resources_in_retrofit_cluster_by_rid(rs, retro_id),
         ids_retrofit_options(rs),
         ids_contribute_min_retirement(rs)))
+end
+
+
+function num_inv_stages(r::AbstractResource)
+    get(r, :NumInvStages, 2)  # Default to 2 if not specified
 end

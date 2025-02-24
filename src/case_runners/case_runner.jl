@@ -199,4 +199,5 @@ function run_genx_case_multistage!(case::AbstractString, mysetup::Dict, optimize
     # Step 5) Write DDP summary outputs
 
     write_multi_stage_outputs(mystats_d, outpath, mysetup, inputs_dict)
+    return model_dict, inputs_dict
 end

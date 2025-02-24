@@ -119,7 +119,11 @@ function configure_ddp_dicts(setup::Dict, inputs::Dict)
         end
     end
 
-    return start_cap_d, cap_track_d
+     # Define the shadow investment tracking dictionary
+    shadow_track_d = Dict(Symbol("eTotalShadowCap") => Symbol("cShadowTrack"))
+    shadow_stage_d = Dict(Symbol("eTotalShadowStage") => Symbol("cShadowStage"))
+
+    return start_cap_d, cap_track_d, shadow_track_d, shadow_stage_d
 end
 
 @doc raw"""
@@ -146,7 +150,7 @@ function run_ddp(outpath::AbstractString, models_d::Dict, setup::Dict, inputs_d:
     myopic = settings_d["Myopic"] == 1 # 1 if myopic (only one forward pass), 0 if full DDP
     write_intermittent_outputs = settings_d["WriteIntermittentOutputs"] == 1 # 1 if write outputs for each stage
 
-    start_cap_d, cap_track_d = configure_ddp_dicts(setup, inputs_d[1])
+    start_cap_d, cap_track_d, shadow_track_d, shadow_stage_d = configure_ddp_dicts(setup, inputs_d[1])
 
     ic = 0 # Iteration Counter
 
@@ -225,7 +229,10 @@ function run_ddp(outpath::AbstractString, models_d::Dict, setup::Dict, inputs_d:
             models_d[t] = fix_initial_investments(models_d[t - 1],
                 models_d[t],
                 start_cap_d,
-                inputs_d[t])
+                shadow_track_d,
+                shadow_stage_d,
+                inputs_d[t],
+                setup)
 
             # Step d.ii) Fix capacity tracking variables for endogenous retirements
             models_d[t] = fix_capacity_tracking(models_d[t - 1],
@@ -279,7 +286,8 @@ function run_ddp(outpath::AbstractString, models_d::Dict, setup::Dict, inputs_d:
             models_d[t - 1] = add_cut(models_d[t - 1],
                 models_d[t],
                 start_cap_d,
-                cap_track_d)
+                cap_track_d,
+                shadow_track_d)
 
             # Step f.ii) Solve the model with the additional cut at time t-1
             models_d[t - 1], solve_time_d[t - 1] = solve_model(models_d[t - 1], setup)
@@ -320,7 +328,10 @@ function run_ddp(outpath::AbstractString, models_d::Dict, setup::Dict, inputs_d:
         models_d[t] = fix_initial_investments(models_d[t - 1],
             models_d[t],
             start_cap_d,
-            inputs_d[t])
+            shadow_track_d,
+            shadow_stage_d,
+            inputs_d[t],
+            setup)
 
         # Step d.ii) Fix capacity tracking variables for endogenous retirements
         models_d[t] = fix_capacity_tracking(models_d[t - 1], models_d[t], cap_track_d, t)
@@ -350,7 +361,9 @@ returns: JuMP model with updated linking constraints.
 function fix_initial_investments(EP_prev::Model,
         EP_cur::Model,
         start_cap_d::Dict,
-        inputs_d::Dict)
+        shadow_track_d::Dict,
+        shadow_stage_d::Dict,
+        inputs_d::Dict, setup::Dict)
     ALL_CAP = union(inputs_d["RET_CAP"], inputs_d["NEW_CAP"]) # Set of all resources subject to inter-stage capacity tracking
 
     # start_cap_d dictionary contains the starting capacity expression name (e) as a key,
@@ -367,6 +380,29 @@ function fix_initial_investments(EP_prev::Model,
             end
         end
     end
+
+    # Fix shadow investments and enforce constraints dynamically
+    settings_d = setup["MultiStageSettingsDict"]
+    NumStages = settings_d["NumStages"]
+
+    for (v, c) in shadow_track_d
+        for y in keys(EP_cur[c])
+            # Set the right hand side value of the linking initial capacity constraint in the current stage to the value of the available capacity variable solved for in the previous stages
+            if y[1] in inputs_d["NEW_CAP"] # extract resource integer index value from key
+                set_normalized_rhs(EP_cur[c][y], value(EP_prev[v][y]))
+            end
+        end
+    end
+
+    for (z, j) in shadow_stage_d
+        for y in keys(EP_cur[j])
+            # Set the right hand side value of the linking initial capacity constraint in the current stage to the value of the available capacity variable solved for in the previous stages
+            if y[1] in inputs_d["NEW_CAP"] # extract resource integer index value from key
+                set_normalized_rhs(EP_cur[j][y], value(EP_prev[z][y]))
+            end
+        end
+    end
+ 
     return EP_cur
 end
 
@@ -418,7 +454,7 @@ function fix_capacity_tracking(EP_prev::Model,
 end
 
 @doc raw"""
-	add_cut(EP_cur::Model, EP_next::Model, start_cap_d::Dict, cap_track_d::Dict)
+	add_cut(EP_cur::Model, EP_next::Model, start_cap_d::Dict, cap_track_d::Dict, shadow_track_d::Dict)
 
 inputs:
 
@@ -429,7 +465,7 @@ inputs:
 
 returns: JuMP expression representing a sum of Benders cuts for linking capacity investment variables to be added to the cost-to-go function.
 """
-function add_cut(EP_cur::Model, EP_next::Model, start_cap_d::Dict, cap_track_d::Dict)
+function add_cut(EP_cur::Model, EP_next::Model, start_cap_d::Dict, cap_track_d::Dict, shadow_track_d::Dict)
     next_obj_value = objective_value(EP_next) # Get the objective function value for the next investment planning stage
 
     eRHS = @expression(EP_cur, 0) # Initialize RHS of cut to 0
@@ -447,6 +483,20 @@ function add_cut(EP_cur::Model, EP_next::Model, start_cap_d::Dict, cap_track_d::
 
         # Generate the cut component
         eCurRHS = generate_cut_component_inv(EP_cur, EP_next, e, c)
+
+        # Add the cut component to the RHS
+        eRHS = eRHS + eCurRHS
+    end
+
+    for (j, c) in shadow_track_d
+
+        # Continue if nothing to add to the cut
+        if isempty(EP_next[j])
+            continue
+        end
+
+        # Generate the cut component
+        eCurRHS = generate_cut_component_inv(EP_cur, EP_next, j, c)
 
         # Add the cut component to the RHS
         eRHS = eRHS + eCurRHS
